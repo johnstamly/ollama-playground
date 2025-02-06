@@ -1,5 +1,5 @@
 import streamlit as st
-
+import os
 from langchain_community.document_loaders import PDFPlumberLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.vectorstores import InMemoryVectorStore
@@ -14,16 +14,27 @@ Context: {context}
 Answer:
 """
 
-pdfs_directory = 'chat-with-pdf/pdfs/'
+pdfs_directory = "pdfs/"
 
-embeddings = OllamaEmbeddings(model="deepseek-r1:14b")
+embeddings = OllamaEmbeddings(model="mxbai-embed-large:latest")
 vector_store = InMemoryVectorStore(embeddings)
 
-model = OllamaLLM(model="deepseek-r1:14b")
+model = OllamaLLM(model="deepseek-r1:7b", num_ctx=16384, num_predict=-2)
 
 def upload_pdf(file):
-    with open(pdfs_directory + file.name, "wb") as f:
+    # Ensure the target directory exists
+    if not os.path.exists(pdfs_directory):
+        os.makedirs(pdfs_directory)
+    
+    # Build the full path using os.path.join
+    file_path = os.path.join(pdfs_directory, file.name)
+    
+    # Write the file's content from the in-memory buffer to disk
+    with open(file_path, "wb") as f:
         f.write(file.getbuffer())
+    
+    # Return the file path so you can use it later
+    return file_path
 
 def load_pdf(file_path):
     loader = PDFPlumberLoader(file_path)
@@ -33,7 +44,7 @@ def load_pdf(file_path):
 
 def split_text(documents):
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
+        chunk_size=2000,
         chunk_overlap=200,
         add_start_index=True
     )
@@ -60,17 +71,18 @@ uploaded_file = st.file_uploader(
 )
 
 if uploaded_file:
-    upload_pdf(uploaded_file)
-    documents = load_pdf(pdfs_directory + uploaded_file.name)
+    # Save the file and retrieve its full path
+    file_path = upload_pdf(uploaded_file)
+    
+    # Now load the PDF from the saved file location
+    documents = load_pdf(file_path)
     chunked_documents = split_text(documents)
     index_docs(chunked_documents)
-
+    
     question = st.chat_input()
-
     if question:
         st.chat_message("user").write(question)
         related_documents = retrieve_docs(question)
         answer = answer_question(question, related_documents)
         st.chat_message("assistant").write(answer)
-
 
