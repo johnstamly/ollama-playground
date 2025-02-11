@@ -62,7 +62,7 @@ def answer_question(question, documents):
     prompt = ChatPromptTemplate.from_template(template)
     chain = prompt | model
 
-    return chain.invoke({"question": question, "context": context})
+    return chain.stream({"question": question, "context": context})
 
 uploaded_file = st.file_uploader(
     "Upload PDF",
@@ -86,3 +86,9 @@ if uploaded_file:
         answer = answer_question(question, related_documents)
         st.chat_message("assistant").write(answer)
 
+        # Streaming response
+        message_placeholder = st.chat_message("assistant").empty()
+        response = ""
+        for chunk in answer_question(question, related_documents):
+            response += chunk
+            message_placeholder.write(response)  # Updates dynamically
